@@ -31,15 +31,17 @@ A powerful Streamlit application that generates comprehensive literature reviews
 
 1. **Setup**
 
-bash
+```bash
 git clone https://github.com/yourusername/AI-LitReview.git
 cd AI-LitReview
 pip install -r requirements.txt
+```
 
 2. **Launch the App**
-
+```
 bash
 streamlit run app.py
+```
 
 3. **Generate a Review**
    - Enter your OpenAI API key
