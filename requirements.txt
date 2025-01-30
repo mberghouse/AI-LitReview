@@ -1,0 +1,12 @@
+streamlit
+openai>=1.0.0
+pandas
+beautifulsoup4
+requests
+python-dotenv
+calendar
+ssl
+re
+typing
+asyncio
+json
