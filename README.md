@@ -12,12 +12,12 @@ A powerful Streamlit application that generates comprehensive literature reviews
   - Local Paper Database: Use pre-downloaded papers for faster processing
 
 - **Flexible Review Types**
-  - Quick Review: Faster processing using GPT-4-turbo
-  - Standard Review: Balanced approach using GPT-4
-  - Deep Review: Most detailed analysis using Claude 3
+  - Quick Review: Faster processing using GPT-4o-mini
+  - Standard Review: Balanced approach using GPT-4o
+  - Deep Review: Most detailed analysis using o3-mini
 
 - **Smart Paper Selection**
-  - Automatically extracts relevant keywords from your topic
+  - Automatically extracts relevant keywords and phrases from your topic
   - Combines results from both Google Scholar and PubMed
   - Prioritizes papers based on relevance and recency
   - Supports customizable minimum reference count (3-100)
