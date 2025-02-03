@@ -74,7 +74,7 @@ class PubMedSearchAgent:
             
             url = f"http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&retmode=xml&id={paper_id}"
             r = requests.get(url)
-            soup = BeautifulSoup(r.content, "html.parser")
+            soup = BeautifulSoup(r.content, features="xml")
             return self._parse_article_data(soup, status_placeholder)
         
         except Exception as e:

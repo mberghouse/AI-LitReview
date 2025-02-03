@@ -12,47 +12,56 @@ class PaperSelectionAgent:
         self.num_papers = num_papers
     
     def select_papers(self, df: pd.DataFrame, scholar_results: List[Dict], topic: str) -> pd.DataFrame:
-        if df.empty:
+        if df.empty and not scholar_results:
             st.warning("No papers found in the search results.")
-            return df
+            return pd.DataFrame()
         
-        # Show original DataFrame
-        with st.expander("Original Papers Dataset"):
-            display_df = df[['title', 'authors', 'date', 'journal', 'abstract']]
-            st.dataframe(display_df)
-            st.write(f"Total papers found: {len(df)}")
+        # Ensure input DataFrame has consistent columns
+        required_columns = ['title', 'authors', 'date', 'journal', 'abstract']
+        for col in required_columns:
+            if col not in df.columns:
+                df[col] = ''
         
-        # Convert scholar results to DataFrame, excluding entries with missing data
+        # Convert scholar results to DataFrame
         scholar_papers = []
         for result in scholar_results:
-            if result['title'] and result['authors'] and result['abstract']:
-                # Extract year from date string if available, otherwise use current year
-                year = result.get('year')
-                if not year:  # If year is None or empty string
-                    year = 'No year given'
-                
+            if result and result.get('title') and result.get('abstract'):
                 scholar_papers.append({
-                    'title': result['title'],
-                    'authors': result['authors'],
-                    'date': str(year),  # Convert to string to match PubMed format
+                    'title': result.get('title', ''),
+                    'authors': result.get('authors', ''),
+                    'date': result.get('year', ''),
                     'journal': result.get('journal', 'Unknown Journal'),
-                    'abstract': result['abstract'],
-                    'pubmed_id': result['url']
+                    'abstract': result.get('abstract', ''),
+                    'pubmed_id': result.get('url', '')
                 })
         
+        # Create scholar DataFrame with consistent columns
         scholar_df = pd.DataFrame(scholar_papers)
+        for col in required_columns:
+            if col not in scholar_df.columns:
+                scholar_df[col] = ''
         
-        # Find exact matches in original df
+        # Create scholar DataFrame and combine with input DataFrame
+        combined_df = pd.concat([df, scholar_df], ignore_index=True)
+        combined_df = combined_df.drop_duplicates(subset=['title']).reset_index(drop=True)
+        
+        # Show original combined DataFrame
+        with st.expander("Original Combined Papers Dataset"):
+            display_df = combined_df[['title', 'authors', 'date', 'journal', 'abstract']]
+            st.dataframe(display_df)
+            st.write(f"Total papers found: {len(combined_df)}")
+        
+        # Find exact matches in combined df
         topic_words = set(topic.lower().split())
-        exact_matches = df.apply(
+        exact_matches = combined_df.apply(
             lambda row: (all(word in row['title'].lower() for word in topic_words) or 
                         all(word in row['abstract'].lower() for word in topic_words)),
             axis=1
         )
         
         # Split dataframe into exact matches and other papers
-        exact_match_df = df[exact_matches]
-        other_papers_df = df[~exact_matches]
+        exact_match_df = combined_df[exact_matches]
+        other_papers_df = combined_df[~exact_matches]
         
         exact_match_count = len(exact_match_df)
         st.write(f"Found {exact_match_count} exact matches")
@@ -109,8 +118,15 @@ class PaperSelectionAgent:
             content = response.choices[0].message.content.strip()
             assignments = {}
             for line in content.split('\n'):
-                if ':' in line:
-                    idx, val = line.strip().split(':')
+                line = line.strip()
+                # Skip empty lines or lines without ':'
+                if not line or ':' not in line:
+                    continue
+                # Split only on the first occurrence of ':'
+                parts = line.split(':', 1)
+                if len(parts) == 2:
+                    idx, val = parts
+                    # Only process if both parts are valid integers
                     if idx.isdigit() and val.isdigit():
                         idx, val = int(idx), int(val)
                         if 0 <= idx < len(other_papers_df) and 0 <= val <= remaining_papers:
@@ -125,8 +141,12 @@ class PaperSelectionAgent:
             selected_other_papers = pd.DataFrame(columns=df.columns)
         
         # Combine all sources and remove duplicates
-        final_df = pd.concat([exact_match_df, selected_other_papers, scholar_df])
+        final_df = pd.concat([exact_match_df, selected_other_papers])
         final_df = final_df.drop_duplicates(subset=['title'], keep='first').reset_index(drop=True)
+        
+        # Ensure abstract column exists
+        if 'abstract' not in final_df.columns:
+            final_df['abstract'] = ''
         
         # Show filtered DataFrame
         with st.expander("Selected Papers for Review (Ordered by Importance)"):

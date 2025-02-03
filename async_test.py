@@ -31,7 +31,7 @@ async def fetch_pubmed_info(query_title, session):
     async with session.get(base_pubmed_url, params=params) as response:
         text = await response.text()
 
-    soup = BeautifulSoup(text, features='xml')
+    soup = BeautifulSoup(text, "html.parser")
     # Locate the first search result link (commonly with class 'docsum-title')
     first_result_link = soup.select_one('a.docsum-title')
     if not first_result_link:
@@ -100,20 +100,13 @@ async def fetch_pubmed_info(query_title, session):
             journal = meta_tag_journal["content"].strip()
             break
 
-    doi = ""
-    # if article_soup.find('articleid', idtype='pubmed'):
-    #     pubmed_id = article_soup.find('articleid', idtype='pubmed').text
-    if article_soup.find('elocationid', eidtype='doi'):
-        doi = article_soup.find('elocationid', eidtype='doi').text
-
     return {
         'title': pubmed_title,
         'abstract': abstract,
         'url': article_url,
         'authors': unique_authors,
         'year': year,
-        'journal': journal,
-        'doi': doi
+        'journal': journal
     }
 
 async def scholar_and_pubmed_search(search_term):
@@ -145,7 +138,7 @@ async def scholar_and_pubmed_search(search_term):
     }
     async with aiohttp.ClientSession(headers=headers) as session:
         # Fetch Google Scholar pages sequentially.
-        for page in range(4):
+        for page in range(3):
             start = page * 10
             params = {
                 'q': search_term,
@@ -167,7 +160,6 @@ async def scholar_and_pubmed_search(search_term):
         pubmed_results = await asyncio.gather(*pubmed_tasks)
 
     results = []
-    
     # Combine results; only include those with valid PubMed data.
     for original_title, pubmed_data in zip(all_titles, pubmed_results):
         if pubmed_data:
@@ -178,7 +170,23 @@ async def scholar_and_pubmed_search(search_term):
                 'url': pubmed_data['url'],
                 'authors': pubmed_data['authors'],
                 'year': pubmed_data['year'],
-                'journal': pubmed_data['journal'],
-                'doi': pubmed_data['doi']
+                'journal': pubmed_data['journal']
             })
     return results
+
+# Example usage:
+async def main():
+    query = "microbial motility in porous media"
+    search_results = await scholar_and_pubmed_search(query)
+    for idx, entry in enumerate(search_results, start=1):
+        print(f"\n--- Result {idx} ---")
+        print("Google Scholar Title: ", entry['title'])
+        print("PubMed Title: ", entry['pubmed_title'])
+        print("PubMed URL: ", entry['url'])
+        print("Authors: ", entry['authors'])
+        print("Abstract: ", entry['abstract'])
+        print("Year: ", entry['year'])
+        print("Journal: ", entry['journal'])
+
+if __name__ == "__main__":
+    asyncio.run(main())

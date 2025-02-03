@@ -49,10 +49,12 @@ class RefiningAgent:
         2. Group related citations using formats like [1-3] or [1, 3-5, 7]
         3. Include author mentions naturally (e.g., "Smith et al. [3] showed...")
         4. Ensure citations appear in ascending order throughout the text
-        5. Generate a new bibliography section at the end that:
+        5. Generate a new references section at the end that:
            - Lists all cited works in order of first appearance
            - Uses numbered format: [1] Authors. (Year). Title. Journal.
            - Includes EVERY paper you cited in the review
+        6. Only edit the primary text of the literature review if it is neccessary to improve the use of the citation for that sentence.
+        7. Ensure that the formatting of your refined review remains the same as the original review, using markdown for all headings.
         
         Current review:
         {review_text}
@@ -60,7 +62,7 @@ class RefiningAgent:
         Available references:
         {bibliography}
         
-        Return the complete review WITH a numbered bibliography section at the end.
+        Return the complete review WITH a numbered "References" section at the end.
         """
         
         response = openai.chat.completions.create(

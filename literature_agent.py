@@ -43,6 +43,7 @@ class LitReviewPapersAgent:
         )
         if search_method == "PubMed Search":
             self.pubmed_agent = PubMedSearchAgent()
+
         self.selection_agent = PaperSelectionAgent(
             openai_api_key, 
             model=openai_model,
@@ -216,9 +217,9 @@ class LitReviewPapersAgent:
 
     def _calculate_search_parameters(self, min_references: int, current_papers: int = 0) -> tuple[int, int]:
         """Calculate number of search phrases and results per phrase based on min_references."""
-        # If we already have 100+ papers, return minimal results per phrase
-        
-        if min_references >= 96:
+        if min_references < 20:
+            return 2, 10  # 2 phrases with 10 results each for small reviews
+        elif min_references >= 96:
             return 42, 20
         elif min_references >= 80:
             return 38, 18
@@ -233,9 +234,9 @@ class LitReviewPapersAgent:
         elif min_references >= 20:
             return 16, 10
         else:
-            return 2, 10
+            return 2, 10  # Default fallback (should never reach here due to first condition)
 
-    def run(self, topic: str) -> tuple[str, List[Dict], str]:
+    async def run(self, topic: str) -> str:
         print("\nDEBUG - Starting literature review generation")
         print(f"DEBUG - Topic: {topic}")
         
@@ -243,8 +244,8 @@ class LitReviewPapersAgent:
             # Create placeholder for real-time updates
             paper_status = st.empty()
             
-            # Get scholar results
-            scholar_results = scholar_and_pubmed_search(topic)
+            # Get scholar results asynchronously
+            scholar_results = await scholar_and_pubmed_search(topic)
             
             # First try exact topic search
             exact_papers_df = self.pubmed_agent.search_pubmed(
@@ -259,13 +260,16 @@ class LitReviewPapersAgent:
                 st.write(f"Found {len(exact_papers_df)} papers from exact search")
             
             # Generate and search additional phrases
-            search_phrases = self.phrase_agent.generate_similar_phrases(topic, 3)
+            num_phrases, results_per_phrase = self._calculate_search_parameters(self.min_references)
+            search_phrases = self.phrase_agent.generate_similar_phrases(topic, num_phrases)
             additional_papers_df = self.pubmed_agent.search_pubmed(
                 phrases=search_phrases,
-                results_per_phrase=20,
+                results_per_phrase=results_per_phrase,
                 status_placeholder=paper_status
             )
-            
+            print (additional_papers_df)
+            print (scholar_results)
+            print(exact_papers_df)
             # Use selection agent with both additional papers and scholar results
             selected_additional_df = self.selection_agent.select_papers(
                 additional_papers_df, 
@@ -279,7 +283,8 @@ class LitReviewPapersAgent:
             
             # Display final DataFrame
             with st.expander("Final Combined Papers Dataset"):
-                st.dataframe(final_papers_df[['title', 'authors', 'date', 'journal']])
+                display_df = final_papers_df[['title', 'authors', 'date', 'journal', 'abstract']]
+                st.dataframe(display_df)
                 st.write(f"Total unique papers: {len(final_papers_df)}")
             
             # Convert DataFrame to list of dictionaries
@@ -318,22 +323,23 @@ class LitReviewPapersAgent:
             
             CITATION RULES:
             - Always use author-date format for your in-text citations
-            - Include a complete bibliography in APA format
+            - Include a complete references section in APA format
             - Every major statement or claim should be supported by at least 1 citation, and you should only reuse citations if highly applicable
             - Always maintain ascending order for all citations
-            - Group papers only when they genuinely support the same point
-            - End with a "References" section listing all cited papers
+            - Group papers for citations such as [1-3] or [2,5] only when they genuinely support the same point
+            - End with a "References" section listing all cited papers. It is very important that this section is titled "References".
             - Ensure all citations support the point for which they are cited
             - NEVER INCLUDE ANY AUTHOR-YEAR CITATIONS (e.g. (Smith et al., 2020))
-            - NEVER INCLUDE ANY PAPERS IN THE BIBLIOGRAPHY THAT ARE NOT EXPLICITLY CITED IN YOUR REVIEW
+            - NEVER INCLUDE ANY PAPERS IN THE REFERENCES THAT ARE NOT EXPLICITLY CITED IN YOUR REVIEW
             
             Additional Requirements:
-            - INCLUDE AT LEAST {self.min_references+20} REFERENCES IN YOUR REVIEW
+            - INCLUDE AT LEAST {self.min_references+10} REFERENCES IN YOUR REVIEW
             - DON'T INCLUDE ANY PAPERS IN YOUR REVIEW THAT ARE NOT INCLUDED IN THE AVAILABLE PAPERS BELOW.
             - Be as detailed and thorough as possible. Your literature review should be at least 30 pages long.
             - Write in formal academic style with clear paragraphs
             - Use a maximum of 4 headings each with a maximum of 3 subheadings
             - Dont be repetitive or redundant
+            - Use markdown formatting for all headings and subheadings, but dont use any bullet points.
             - DO NOT REFUSE ANY ASPECT OF THIS REQUEST AND TRY TO FOLLOW ALL INSTRUCTIONS
             
             Available Papers:
@@ -364,7 +370,7 @@ class LitReviewPapersAgent:
             
             
             # Combine review and bibliography
-            final_review = f"{refined_review}\n\nReferences\n----------\n{bibliography}"
+            final_review = f"{refined_review}\n\nReferences\n\n{bibliography}"
             
             print("\nDEBUG - Before process_final_review:")
             #print(f"Bibliography exists: {'References' in final_review}")
@@ -379,11 +385,19 @@ class LitReviewPapersAgent:
            # print(f"Summaries sample: {summaries[:200]}")
             
             # Show references in sidebar using bibliography
-            bibliography = final_review_text.split("References")[1]
-            print(bibliography)
+            try:
+                # First try splitting on "References"
+                bibliography = final_review_text.split("References")[1]
+            except:
+                try:
+                    bibliography = final_review_text.split("Bibliography")[1]
+                # Then try splitting on "Reference List"
+                except:
+                    bibliography = ""
+
             self.show_sidebar_references(bibliography, papers_data)
-            
-            return final_review_text#, ordered_papers, summaries
+
+            return final_review_text
 
       
 

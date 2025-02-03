@@ -20,7 +20,9 @@ class CitationAlignmentAgent:
         2. DO NOT add or remove citations
         3. ONLY modify the review text if absolutely necessary to ensure accuracy with cited papers
         4. Ensure every citation number matches its corresponding bibliography entry
-        5. Return the complete review with bibliography
+        5. Return the complete review and references
+        6. Ensure that the formatting of your refined review remains the same as the original review, using markdown for all headings.
+
 
         Review Text:
         {review_text}
@@ -28,7 +30,7 @@ class CitationAlignmentAgent:
         Bibliography:
         {bibliography}
 
-        Return the complete review followed by the bibliography, with citations properly aligned.
+        Return the complete review followed by the references, with citations properly aligned.
         """
         
         response = openai.chat.completions.create(

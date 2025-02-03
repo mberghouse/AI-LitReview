@@ -62,7 +62,7 @@ def create_bibliography(papers):
     
     return "\n".join(bibliography)
 
-def main():
+async def main():
     st.title("Literature Review Generator")
     
     # Add very visible starting message
@@ -92,9 +92,9 @@ def main():
         "Choose review type:",
         ["Quick Review", "Standard Review", "Deep Review"],
         help="""
-        Quick Review: Faster but less detailed (GPT-4-turbo)
-        Standard Review: Balanced speed and detail (GPT-4)
-        Deep Review: Most detailed but slower (Claude 3)
+        Quick Review: Faster but less detailed (GPT-4o-mini)
+        Standard Review: Balanced speed and detail (GPT-4o)
+        Deep Review: Most detailed but slower (o3-mini)
         """
     )
     
@@ -106,8 +106,8 @@ def main():
         model = "gpt-4o"
         model_params = {"temperature": 0, "max_tokens": 16384}
     else:  # Deep Review
-        model = "o1-mini"
-        model_params = {}  # o1 models don't use temperature or max_tokens
+        model = "o3-mini-2025-01-31"
+        model_params = {}  # o3 models don't use temperature or max_tokens
     
     topic = st.text_area(
         label="Enter your research topic:",
@@ -150,23 +150,13 @@ def main():
             review_placeholder = st.empty()
             review_placeholder.markdown("Extracting keywords and fetching papers...")
             
-            # Get initial review, papers, and summaries directly from run()
-            review_text= agent.run(topic)
-            
-            # Debug output
-            # with st.expander("Debug - Sidebar Input Data"):
-            #     st.write("### Papers Data")
-            #     st.json(papers_data)
-                
-            #     st.write("\n### Summaries")
-            #     st.write(summaries)
-            
-            # Show the references in the sidebar with summaries
-            #show_sidebar_references(papers_data, summaries)
+            # Await the async run method
+            review_text = await agent.run(topic)
             
             # Show the complete review
             review_placeholder.markdown(review_text)
             st.success("Literature review generated!")
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
