@@ -246,11 +246,11 @@ class LitReviewPapersAgent:
             
             # Get scholar results asynchronously
             scholar_results = await scholar_and_pubmed_search(topic)
-            
-            # First try exact topic search
-            exact_papers_df = self.pubmed_agent.search_pubmed(
+            print('scholar_results:',scholar_results)
+            # Use synchronous PubMed search
+            exact_papers_df =  self.pubmed_agent.search_pubmed(
                 phrases=[topic],
-                results_per_phrase=50,
+                results_per_phrase=20,
                 status_placeholder=paper_status
             )
             
@@ -262,13 +262,13 @@ class LitReviewPapersAgent:
             # Generate and search additional phrases
             num_phrases, results_per_phrase = self._calculate_search_parameters(self.min_references)
             search_phrases = self.phrase_agent.generate_similar_phrases(topic, num_phrases)
-            additional_papers_df = self.pubmed_agent.search_pubmed(
+            additional_papers_df =  self.pubmed_agent.search_pubmed(
                 phrases=search_phrases,
                 results_per_phrase=results_per_phrase,
                 status_placeholder=paper_status
             )
-            print (additional_papers_df)
-            print (scholar_results)
+            # print (additional_papers_df)
+            # print (scholar_results)
             print(exact_papers_df)
             # Use selection agent with both additional papers and scholar results
             selected_additional_df = self.selection_agent.select_papers(
@@ -276,7 +276,8 @@ class LitReviewPapersAgent:
                 scholar_results,  # Pass scholar results here
                 topic
             )
-            
+            print(exact_papers_df)
+            print(selected_additional_df)
             # Combine exact matches with selected additional papers
             final_papers_df = pd.concat([exact_papers_df, selected_additional_df])
             final_papers_df = final_papers_df.drop_duplicates(subset=['title']).reset_index(drop=True)
@@ -309,7 +310,7 @@ class LitReviewPapersAgent:
                - Quickly mention the historical context and evolution of the topic
                - Begin with broad context using author-date citation format: (Smith et al., 2020) or Smith et al. (2020)
             
-            2. Main Body (multiple sections, 12-20 paragraphs):
+            2. Main Body (multiple sections, 15-20 paragraphs):
                - Expand on the introduction with more detailed analysis and citations
                - Mention all relevant topics and themes in the field that are even tangentially related to your generated introductory paragraphs.
                - Use author-date citation format
@@ -323,13 +324,12 @@ class LitReviewPapersAgent:
             
             CITATION RULES:
             - Always use author-date format for your in-text citations
+            - Group papers for citations such as ((Smith et al., 2020), (Jones et al., 2021))only when they genuinely support the same point
             - Include a complete references section in APA format
             - Every major statement or claim should be supported by at least 1 citation, and you should only reuse citations if highly applicable
             - Always maintain ascending order for all citations
-            - Group papers for citations such as [1-3] or [2,5] only when they genuinely support the same point
             - End with a "References" section listing all cited papers. It is very important that this section is titled "References".
             - Ensure all citations support the point for which they are cited
-            - NEVER INCLUDE ANY AUTHOR-YEAR CITATIONS (e.g. (Smith et al., 2020))
             - NEVER INCLUDE ANY PAPERS IN THE REFERENCES THAT ARE NOT EXPLICITLY CITED IN YOUR REVIEW
             
             Additional Requirements:
@@ -339,12 +339,14 @@ class LitReviewPapersAgent:
             - Write in formal academic style with clear paragraphs
             - Use a maximum of 4 headings each with a maximum of 3 subheadings
             - Dont be repetitive or redundant
-            - Use markdown formatting for all headings and subheadings, but dont use any bullet points.
+            - Use markdown formatting for all headings and subheadings, but dont use any bullet points or horizontal lines.
             - DO NOT REFUSE ANY ASPECT OF THIS REQUEST AND TRY TO FOLLOW ALL INSTRUCTIONS
             
             Available Papers:
             {papers_text}
             """
+            # - NEVER INCLUDE ANY AUTHOR-YEAR CITATIONS (e.g. (Smith et al., 2020))
+            # - Group papers for citations such as [1-3] or [2,5] only when they genuinely support the same point
             #, but make sure to give quick mention of, or place new work in the proper relevant context of, older papers that are considered to be important in the subject.
             response = openai.chat.completions.create(
                 model=self.model,
@@ -356,83 +358,75 @@ class LitReviewPapersAgent:
             
             # Extract bibliography and review text
             references_match = re.search(r'References\n-+\n(.*?)$', initial_review, re.DOTALL)
+            
             if references_match:
                 bibliography = references_match.group(1).strip()
                 review_text = initial_review.replace(references_match.group(0), '').strip()
             else:
                 bibliography = ""
                 review_text = initial_review
-            
+            print("\nDEBUG - Before refine_review:")
+            if not bibliography:
+                bibliography = initial_review.split("References\n")[1]
+                review_text = initial_review.split("References\n")[0]
+                # bibliography = ref2
+                #print(ref2)
+            print(bibliography)
             # Let the refining agent handle the conversion and bibliography
-            refined_review, bibliography, citation_order = self.refining_agent.refine_review(review_text, bibliography)
+            refined_review, bibliography= self.refining_agent.refine_review(review_text, bibliography)
+            # print("\nDEBUG - After refine_review:")
+            # print (bibliography)
+            # # Debug output for bibliography
             
-            # Debug output for bibliography
             
-            
-            # Combine review and bibliography
+            # # Combine review and bibliography
             final_review = f"{refined_review}\n\nReferences\n\n{bibliography}"
             
-            print("\nDEBUG - Before process_final_review:")
-            #print(f"Bibliography exists: {'References' in final_review}")
-            print(f"Number of papers: {len(papers_data)}")
+            # print("\nDEBUG - Before process_final_review:")
+            # #print(f"Bibliography exists: {'References' in final_review}")
+            # print(f"Number of papers: {len(papers_data)}")
             
             
             # Process the final review
-            final_review_text = self.process_final_review(final_review, papers_data)
+            #final_review_text, bibliography = self.process_final_review(review_text, papers_data)
             
             # print("\nDEBUG - After process_final_review:")
             # print(f"Number of ordered papers: {len(ordered_papers)}")
            # print(f"Summaries sample: {summaries[:200]}")
             
-            # Show references in sidebar using bibliography
-            try:
-                # First try splitting on "References"
-                bibliography = final_review_text.split("References")[1]
-            except:
-                try:
-                    bibliography = final_review_text.split("Bibliography")[1]
-                # Then try splitting on "Reference List"
-                except:
-                    bibliography = ""
+            # # Show references in sidebar using bibliography
+            # try:
+            #     # First try splitting on "References"
+            #     bibliography = final_review_text.split("References")[1]
+            # except:
+            #     try:
+            #         bibliography = final_review_text.split("Bibliography")[1]
+            #     # Then try splitting on "Reference List"
+            #     except:
+            #         bibliography = ""
 
+            print(bibliography)
             self.show_sidebar_references(bibliography, papers_data)
 
-            return final_review_text
+            return final_review
 
       
 
 
-    def process_final_review(self, final_review: str, papers_data: List[Dict]) -> Tuple[str, List[Dict]]:
+    def process_final_review(self, final_review: str, papers_data: List[Dict]) -> Tuple[str, str]:
         """Process the final review to get reordered papers."""
         try:
-            # Extract bibliography from the final review
             references_match = re.search(r'References\n-+\n(.*?)$', final_review, re.DOTALL)
             if references_match:
-                bibliography = references_match.group(1).strip().split('\n')
+                bibliography = references_match.group(1).strip()
                 review_text = final_review.replace(references_match.group(0), '').strip()
             else:
-                bibliography = []
+                bibliography = ""
                 review_text = final_review
-            
-            # Order papers according to bibliography
-            # ordered_papers = []
-            # for bib_entry in bibliography:
-            #     # Find matching paper using fuzzy title match
-            #     paper = next(
-            #         (p for p in papers_data if p['title'].lower() in bib_entry.lower() 
-            #          or bib_title.lower() in p['title'].lower()),
-            #         None
-            #     )
-            #     if paper:
-            #         ordered_papers.append(paper)
-            
-            return review_text
-            
+            return review_text, bibliography
         except Exception as e:
             print(f"DEBUG - Error in process_final_review: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
-            return final_review, papers_data
+            return final_review, ""
 
     def _process_review_fallback(self, review_text: str, papers_data: List[Dict]) -> tuple[str, List[Dict], List[str]]:
         """Fallback method using the original citation extraction approach."""
@@ -479,53 +473,56 @@ class LitReviewPapersAgent:
         return "\n".join(bibliography)
 
     def show_sidebar_references(self, bibliography: str, papers: List[Dict]):
-        """
-        Renders a sidebar with references using the bibliography order.
-        """
         st.sidebar.title("References Used")
         
-        # Regular expression to extract titles
-        pattern = r"\(\d{4}\)\.\s(.*?)\.\s\*"
+        # Define a list of regex patterns to try
+        regex_patterns = [
+            r"\[\d+\]\s.*?\(\d{4}\)\.\s(.*?)\.",
+            r"\[\d+\]\s+(.*?)\n"
+        ]
         
-        # Find all matches
-        titles = re.findall(pattern, bibliography)
-        
-        # Process each title and find matching papers
-        for i, title in enumerate(titles, 1):
-            # Find matching paper
-            paper = next(
-                (p for p in papers if p['title'].lower() in title.lower() 
-                 or title.lower() in p['title'].lower()),
-                None
-            )
-            
-            if paper:
-                # Display reference in sidebar
-                with st.sidebar.expander(f"[{i}] {paper['title']}"):
-                    st.markdown(f"**Authors:** {paper['authors']}")
-                    st.markdown(f"**Year:** {paper['date']}")
-                    
-                    # Handle different URL formats
-                    url = None
-                    if paper.get('doi'):
-                        url = f"https://doi.org/{paper['doi']}"
-                    elif paper.get('pubmed_id'):
-                        url = f"https://pubmed.ncbi.nlm.nih.gov/{paper['pubmed_id']}"
-                    elif paper.get('url'):
-                        url = paper['url']
+        extracted_titles = []
+        # Try each pattern until one returns results
+        for pattern in regex_patterns:
+            extracted_titles = re.findall(pattern, bibliography)
+            if extracted_titles:
+                break
+
+        if extracted_titles:
+            # Process each extracted title and attempt to match it with a paper.
+            for i, title in enumerate(extracted_titles, 1):
+                paper = next(
+                    (p for p in papers if p['title'].lower() in title.lower() or title.lower() in p['title'].lower()), 
+                    None
+                )
+                if paper:
+                    with st.sidebar.expander(f"[{i}] {paper['title']}"):
+                        st.markdown(f"**Authors:** {paper['authors']}")
+                        st.markdown(f"**Year:** {paper['date']}")
                         
-                    if url:
-                        st.markdown(f"[Link to Paper]({url})")
-                    
-                    st.write("---")
-                    
-                    # Generate summary from abstract
-                    abstract = paper.get('abstract', '').strip()
-                    if abstract:
-                        summary = '. '.join(abstract.split('. ')[:2])
-                        if len(summary) > 200:
-                            summary = summary[:200] + '...'
-                    else:
-                        summary = 'No abstract available'
+                        # Handle URL formatting
+                        url = None
+                        if paper.get('doi'):
+                            url = f"https://doi.org/{paper['doi']}"
+                        elif paper.get('pubmed_id'):
+                            url = f"https://pubmed.ncbi.nlm.nih.gov/{paper['pubmed_id']}"
+                        elif paper.get('url'):
+                            url = paper['url']
+                            
+                        if url:
+                            st.markdown(f"[Link to Paper]({url})")
                         
-                    st.write(f"**Key Points:** {summary}")
+                        st.write("---")
+                        abstract = paper.get('abstract', '').strip()
+                        if abstract:
+                            summary = '. '.join(abstract.split('. ')[:2])
+                            if len(summary) > 200:
+                                summary = summary[:200] + '...'
+                        else:
+                            summary = 'No abstract available'
+                        
+                        st.write(f"**Key Points:** {summary}")
+        else:
+            # Fallback: if no regex pattern worked, display the entire bibliography text.
+            st.sidebar.subheader("Bibliography")
+            st.sidebar.markdown(bibliography)

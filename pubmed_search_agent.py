@@ -57,7 +57,7 @@ class PubMedSearchAgent:
 
         # Create DataFrame with proper columns
         df = pd.DataFrame(all_articles, columns=[
-            'authors', 'title', 'journal', 'volume', 'date', 'pubmed_id', 'doi', 'abstract'
+            'authors', 'title', 'journal', 'date', 'pubmed_id', 'doi', 'abstract'
         ])
         
         print(f"\nDEBUG - Final DataFrame shape: {df.shape}")
@@ -75,74 +75,79 @@ class PubMedSearchAgent:
             url = f"http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&retmode=xml&id={paper_id}"
             r = requests.get(url)
             soup = BeautifulSoup(r.content, features="xml")
-            return self._parse_article_data(soup, status_placeholder)
+            article_data = self._parse_article_data(soup, status_placeholder)
+            
+            if article_data:
+                print(f"DEBUG - Successfully parsed article {paper_id}")
+                print(f"DEBUG - Title: {article_data[1][:100]}...")
+            else:
+                print(f"DEBUG - Failed to parse article {paper_id}")
+            
+            return article_data
         
         except Exception as e:
-            print(f"Error fetching article: {e}")
+            print(f"Error fetching article {paper_id}: {e}")
+            traceback.print_exc()
             return None
     
     def _parse_article_data(self, soup, status_placeholder: Optional[Any] = None) -> Optional[Tuple]:
         try:
-            article = soup.find('article')
-            journal = soup.find('journal')
-            if not article or not journal:
+            article = soup.find('PubmedArticle')
+            if not article:
+                print("DEBUG - No PubmedArticle found in XML")
                 return None
 
             # Extract authors
-            authors = ""
-            authorlist = article.find('authorlist')
-            if authorlist:
-                author_count = len(authorlist.find_all('lastname'))
-                for i, (last, init) in enumerate(zip(authorlist.find_all('lastname'), authorlist.find_all('initials'))):
-                    authors += f"{init.text}. {last.text}"
-                    if i == author_count - 2:
-                        authors += " and "
-                    elif i < author_count - 1:
-                        authors += ", "
+            authors = []
+            author_list = article.find('AuthorList')
+            if author_list:
+                for author in author_list.find_all('Author'):
+                    lastname = author.find('LastName')
+                    initials = author.find('Initials')
+                    if lastname and initials:
+                        authors.append(f"{initials.text}. {lastname.text}")
+            authors_str = ", ".join(authors)
 
             # Extract title
             title = ""
-            if article.find('articletitle'):
-                title = strip_brackets(article.find('articletitle').text)
+            article_title = article.find('ArticleTitle')
+            if article_title:
+                title = article_title.text.strip()
 
             # Extract journal info
-            journal_title = journal.find('title').text if journal.find('title') else ""
-            volume = journal.find('volume').text if journal.find('volume') else ""
-            if volume and soup.find('issue'):
-                volume += f"({soup.find('issue').text})"
+            journal = ""
+            journal_title = article.find('Title')
+            if journal_title:
+                journal = journal_title.text.strip()
 
             # Extract date
             date = ""
-            journal_issue = journal.find('journalissue')
-            if journal_issue:
-                month = journal_issue.find('month')
-                year = journal_issue.find('year')
-                if month and year:
-                    month_text = month.text
-                    if len(month_text) < 3:
-                        month_text = calendar.month_abbr[int(month_text)]
-                    date = f"({month_text}. {year.text})"
-                elif year:
-                    date = f"({year.text})"
+            pub_date = article.find('PubDate')
+            if pub_date:
+                year = pub_date.find('Year')
+                if year:
+                    date = year.text
 
-            # Extract IDs
-            pubmed_id = ""
+            # Extract DOI and PubMed ID
             doi = ""
-            if article.find('articleid', idtype='pubmed'):
-                pubmed_id = article.find('articleid', idtype='pubmed').text
-            if article.find('elocationid', eidtype='doi'):
-                doi = article.find('elocationid', eidtype='doi').text
+            pubmed_id = ""
+            article_ids = article.find_all('ArticleId')
+            for id_elem in article_ids:
+                if id_elem.get('IdType') == 'doi':
+                    doi = id_elem.text
+            pmid = article.find('PMID')
+            if pmid:
+                pubmed_id = pmid.text
 
             # Extract abstract
             abstract = ""
-            if article.find('abstract'):
-                abstract = article.find('abstract').get_text()
+            abstract_text = article.find('Abstract')
+            if abstract_text:
+                abstract = " ".join([text.text for text in abstract_text.find_all('AbstractText')])
 
-            if status_placeholder:
-                status_placeholder.write(f"Found paper: {title[:100]}...")
-            
-            return (authors, title, journal_title, volume, date, pubmed_id, doi, abstract)
-        
+            return (authors_str, title, journal, date, pubmed_id, doi, abstract)
+
         except Exception as e:
             print(f"Error parsing article: {e}")
+            traceback.print_exc()
             return None 

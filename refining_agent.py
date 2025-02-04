@@ -53,8 +53,9 @@ class RefiningAgent:
            - Lists all cited works in order of first appearance
            - Uses numbered format: [1] Authors. (Year). Title. Journal.
            - Includes EVERY paper you cited in the review
-        6. Only edit the primary text of the literature review if it is neccessary to improve the use of the citation for that sentence.
+        6. Only edit the primary text of the literature review if it is neccessary to improve the use of the citation(s) for that sentence.
         7. Ensure that the formatting of your refined review remains the same as the original review, using markdown for all headings.
+        8. The references section must be named "References"
         
         Current review:
         {review_text}
@@ -62,7 +63,7 @@ class RefiningAgent:
         Available references:
         {bibliography}
         
-        Return the complete review WITH a numbered "References" section at the end.
+        Return the complete review, without any additional text, WITH a numbered "References" section at the end.
         """
         
         response = openai.chat.completions.create(
@@ -75,15 +76,23 @@ class RefiningAgent:
         
         # Extract bibliography from the refined text
         references_match = re.search(r'References\n-+\n(.*?)$', refined_text, re.DOTALL)
+            
         if references_match:
-            new_bibliography = references_match.group(1).strip()
+            bibliography = references_match.group(1).strip()
             review_text = refined_text.replace(references_match.group(0), '').strip()
         else:
-            new_bibliography = bibliography
+            bibliography = ""
             review_text = refined_text
+        print("\nDEBUG - During refine_review:")
+        if not bibliography:
+            bibliography = refined_text.split("References\n")[1]
+            review_text = refined_text.split("References\n")[0]
+            # bibliography = ref2
+            #print(ref2)
+        print(bibliography)
         
         # Extract final citation order
-        final_citations = self.extract_citations(review_text)
-        citation_order = ",".join(map(str, sorted(set(final_citations))))
+        # final_citations = self.extract_citations(review_text)
+        # citation_order = ",".join(map(str, sorted(set(final_citations))))
         
-        return review_text, new_bibliography, citation_order 
+        return review_text, bibliography 

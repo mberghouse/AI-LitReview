@@ -34,12 +34,14 @@ class PaperSelectionAgent:
                     'abstract': result.get('abstract', ''),
                     'pubmed_id': result.get('url', '')
                 })
-        
+        print('scholar_papers: ',scholar_papers)
         # Create scholar DataFrame with consistent columns
         scholar_df = pd.DataFrame(scholar_papers)
+        print('scholar_df: ',scholar_df)
         for col in required_columns:
             if col not in scholar_df.columns:
                 scholar_df[col] = ''
+
         
         # Create scholar DataFrame and combine with input DataFrame
         combined_df = pd.concat([df, scholar_df], ignore_index=True)
@@ -67,7 +69,7 @@ class PaperSelectionAgent:
         st.write(f"Found {exact_match_count} exact matches")
         
         # Calculate remaining papers needed
-        remaining_papers = max(0, self.num_papers - exact_match_count)
+        remaining_papers = max(0, self.num_papers - exact_match_count)+10
         
         if remaining_papers > 0 and not other_papers_df.empty:
             # Format remaining papers for prompt

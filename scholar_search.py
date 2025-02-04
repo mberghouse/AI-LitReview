@@ -32,6 +32,7 @@ async def fetch_pubmed_info(query_title, session):
         text = await response.text()
 
     soup = BeautifulSoup(text, features='xml')
+    print(soup)
     # Locate the first search result link (commonly with class 'docsum-title')
     first_result_link = soup.select_one('a.docsum-title')
     if not first_result_link:
@@ -160,25 +161,32 @@ async def scholar_and_pubmed_search(search_term):
                 link = h3.select_one('a')
                 if link:
                     title = link.get_text(separator=" ", strip=True)
-                    all_titles.append(title)
+                    if title not in all_titles:
+                        all_titles.append(title)
 
         # For each Google Scholar title, query PubMed concurrently.
         pubmed_tasks = [fetch_pubmed_info(title, session) for title in all_titles]
         pubmed_results = await asyncio.gather(*pubmed_tasks)
-
+    print(pubmed_results)
     results = []
-    
+    seen_abstracts = set()
     # Combine results; only include those with valid PubMed data.
     for original_title, pubmed_data in zip(all_titles, pubmed_results):
         if pubmed_data:
-            results.append({
+            authors_str = ", ".join(pubmed_data['authors']) if isinstance(pubmed_data['authors'], list) else pubmed_data['authors']
+            normalized_abstract = pubmed_data['abstract'].strip() if pubmed_data['abstract'] else ""
+            if normalized_abstract in seen_abstracts:
+                continue
+            else:
+                seen_abstracts.add(normalized_abstract)
+                results.append({
                 'title': original_title,
                 'pubmed_title': pubmed_data['title'],
                 'abstract': pubmed_data['abstract'],
                 'url': pubmed_data['url'],
-                'authors': pubmed_data['authors'],
+                'authors': authors_str,
                 'year': pubmed_data['year'],
                 'journal': pubmed_data['journal'],
                 'doi': pubmed_data['doi']
-            })
+                })
     return results

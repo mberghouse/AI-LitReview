@@ -2,6 +2,12 @@ import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
 import re
+from scholarly import ProxyGenerator, scholarly
+#topic = 'Particle Tracking Algorithms'
+pg = ProxyGenerator()
+pg.FreeProxies()
+scholarly.use_proxy(pg)
+
 
 async def fetch_pubmed_info(query_title, session):
     """
@@ -129,6 +135,7 @@ async def scholar_and_pubmed_search(search_term):
     base_scholar_url = "https://scholar.google.com/scholar"
     all_titles = []
     # Use a browser-like User-Agent.
+    connector = aiohttp.TCPConnector(ssl=False)
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -136,7 +143,7 @@ async def scholar_and_pubmed_search(search_term):
             "Chrome/103.0.0.0 Safari/537.36"
         )
     }
-    async with aiohttp.ClientSession(headers=headers) as session:
+    async with aiohttp.ClientSession(connector=connector, headers=headers, trust_env=True) as session:
         # Fetch Google Scholar pages sequentially.
         for page in range(3):
             start = page * 10
